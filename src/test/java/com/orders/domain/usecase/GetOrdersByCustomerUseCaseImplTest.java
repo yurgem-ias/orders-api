@@ -42,7 +42,7 @@ class GetOrdersByCustomerUseCaseImplTest {
         List<Order> results = useCase.getOrdersByCustomerDocument(document);
 
         assertEquals(1, results.size());
-        assertEquals("order-id.1", results.get(0).getId());
+        assertEquals("order-id-1", results.get(0).getId());
         verify(orderRepositoryPort, times(1)).findByCustomerDocumentNumber(document);
     }
 
@@ -79,7 +79,7 @@ class GetOrdersByCustomerUseCaseImplTest {
         IllegalArgumentException exceptionCharapter = assertThrows(IllegalArgumentException.class, ()->{
             useCase.getOrdersByCustomerDocument("123asdas321");
         });
-        assertTrue(exceptionCharapter.getMessage().contains("mus be numeric and between 5 and 12 digits"));
+        assertTrue(exceptionCharapter.getMessage().contains("must be numeric and between 5 and 12 digits"));
 
         verifyNoInteractions(orderRepositoryPort);
 

@@ -89,7 +89,7 @@ class InMemoryOrderRespositoryAdapaterTest {
     void shouldFindOrdersByCustomerDocumentNumber(){
         repository.save(sampleOrder);
 
-        List<Order> orders = repository.findByCustomerDocumentNumber("12345678");
+        List<Order> orders = repository.findByCustomerDocumentNumber("109213121");
         assertEquals(1, orders.size());
         assertEquals("order-uuid-123", orders.get(0).getId());
 

@@ -177,7 +177,7 @@ public class OrderControllerTest {
         when(getOrdersByCustomerUseCase.getOrdersByCustomerDocument(document))
                 .thenReturn(List.of(mockOrder));
 
-        mockMvc.perform(get("(api/v1/orders/customer/" + document))
+        mockMvc.perform(get("/api/v1/orders/customer/" + document))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id", is("some-id")))
@@ -186,7 +186,7 @@ public class OrderControllerTest {
 
     @Test
     public void shouldReturnBadRequestWhenCustomerDocumentIsInvalid() throws Exception{
-        mockMvc.perform(get("api/v1/orders/customer/123"))
+        mockMvc.perform(get("/api/v1/orders/customer/123"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status", is(400)))
                 .andExpect(jsonPath("$.message", containsString("Validation failed")));

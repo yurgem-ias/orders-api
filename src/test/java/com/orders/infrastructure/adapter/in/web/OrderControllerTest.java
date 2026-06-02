@@ -6,6 +6,7 @@ import com.orders.domain.model.Order;
 import com.orders.domain.model.OrderItem;
 import com.orders.domain.port.in.CreateOrderUseCase;
 import com.orders.domain.port.in.GetOrderUseCase;
+import com.orders.domain.port.in.GetOrdersByCustomerUseCase;
 import com.orders.infrastructure.adapter.in.web.dto.CreateOrderRequest;
 import com.orders.infrastructure.adapter.in.web.dto.CustomerDto;
 import com.orders.infrastructure.adapter.in.web.dto.OrderItemDto;
@@ -44,9 +45,11 @@ public class OrderControllerTest {
     @MockitoBean
     private GetOrderUseCase getOrderUseCase;
 
+    @MockitoBean
+    private GetOrdersByCustomerUseCase getOrdersByCustomerUseCase;
+
     @Test
     public void shouldCreateOrderWhenPayloadIsValid() throws Exception {
-        // Arrange
         CustomerDto customerDto = CustomerDto.builder()
                 .name("Yurgen Alvarez")
                 .email("yurgen@example.com")
@@ -84,7 +87,6 @@ public class OrderControllerTest {
 
         when(createOrderUseCase.createOrder(any(Order.class))).thenReturn(mockSavedOrder);
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -98,12 +100,11 @@ public class OrderControllerTest {
 
     @Test
     public void shouldReturnBadRequestWhenPayloadIsInvalid() throws Exception {
-        // Arrange (invalid email, empty items list, short doc number)
         CustomerDto customerDto = CustomerDto.builder()
                 .name("Yurgen Alvarez")
                 .email("invalid-email")
                 .documentType("CC")
-                .documentNumber("123") // too short, requires 5-12 digits
+                .documentNumber("123") 
                 .build();
 
         CreateOrderRequest request = CreateOrderRequest.builder()
@@ -111,7 +112,6 @@ public class OrderControllerTest {
                 .items(Collections.emptyList())
                 .build();
 
-        // Act & Assert
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -123,7 +123,6 @@ public class OrderControllerTest {
 
     @Test
     public void shouldReturnOrderWhenExists() throws Exception {
-        // Arrange
         Order mockOrder = Order.builder()
                 .id("12345")
                 .customer(Customer.builder()
@@ -143,7 +142,6 @@ public class OrderControllerTest {
 
         when(getOrderUseCase.getOrderById("12345")).thenReturn(Optional.of(mockOrder));
 
-        // Act & Assert
         mockMvc.perform(get("/api/v1/orders/12345"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id", is("12345")))
@@ -153,13 +151,44 @@ public class OrderControllerTest {
 
     @Test
     public void shouldReturnNotFoundWhenOrderDoesNotExist() throws Exception {
-        // Arrange
         when(getOrderUseCase.getOrderById("non-existent")).thenReturn(Optional.empty());
 
-        // Act & Assert
         mockMvc.perform(get("/api/v1/orders/non-existent"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status", is(404)))
                 .andExpect(jsonPath("$.message", containsString("Order with ID non-existent not found")));
+    }
+
+    @Test
+    public void shouldRetunOrdersByCustomerWhenValid() throws Exception{
+        String document = "123456789";
+        Order mockOrder = Order.builder()
+                .id("some-id")
+                .customer(Customer.builder()
+                        .name("Yurgen Prado")
+                        .email("yurgen.prado@ias.com.co")
+                        .documentType("CC")
+                        .documentNumber(document)
+                        .build())
+                .totalAmount(150.0)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(getOrdersByCustomerUseCase.getOrdersByCustomerDocument(document))
+                .thenReturn(List.of(mockOrder));
+
+        mockMvc.perform(get("(api/v1/orders/customer/" + document))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id", is("some-id")))
+                .andExpect(jsonPath("$[0].customer.documentNumber", is(document)));
+    }
+
+    @Test
+    public void shouldReturnBadRequestWhenCustomerDocumentIsInvalid() throws Exception{
+        mockMvc.perform(get("api/v1/orders/customer/123"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", containsString("Validation failed")));
     }
 }

@@ -44,7 +44,7 @@ public class OrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @CacheEvict(value = "ordersByCustomer", key = "#request.customer.documentNumber")
+    @CacheEvict(value = "ordersByCustomer", key = "#p0.customer.documentNumber")
     @Operation(
         summary = "Create new order",
         description = "initiates the process of creating a controlled and validated order"
@@ -94,14 +94,14 @@ public class OrderController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         )
     })
-    public OrderResponse getOrderById(@PathVariable String id) {
+    public OrderResponse getOrderById(@PathVariable("id") String id) {
         return getOrderUseCase.getOrderById(id)
                 .map(OrderWebMapper::toResponse)
                 .orElseThrow(() -> new OrderNotFoundException("Order with ID " + id + " not found"));
     }
 
     @GetMapping("/customer/{documentNumber}")
-    @Cacheable(value = "ordersByCustomer", key = "#documentNumber")
+    @Cacheable(value = "ordersByCustomer", key = "#p0")
     @Operation(
         summary = "Check orders by document number",
         description = "Searches and returns the list of orders associated with a document number. Validates the document format and uses caching."
@@ -124,7 +124,7 @@ public class OrderController {
         )
     })
     public List<OrderResponse> getOrderByCustomerDocument(
-        @PathVariable
+        @PathVariable("documentNumber")
         @Pattern(regexp = "^\\d{5,12}$", message = "Document number must be numeric and between 5 and 12 digits")
         String documentNumber
     ){
@@ -162,7 +162,7 @@ public class OrderController {
         )
     })
     public reactor.core.publisher.Mono<List<OrderResponse>> getOrderByCustomerDocumentReactive(
-        @PathVariable
+        @PathVariable("documentNumber")
         @Pattern(regexp = "^\\d{5,12}$", message = "Document number must be numeric and between 5 and 12 digits" )
         String documentNumber
     ){

@@ -6,10 +6,14 @@ import com.orders.domain.model.Order;
 import com.orders.domain.model.OrderItem;
 import com.orders.domain.port.in.CreateOrderUseCase;
 import com.orders.domain.port.in.GetOrderUseCase;
+import com.orders.domain.port.in.GetOrdersByCustomerReactiveUseCase;
 import com.orders.domain.port.in.GetOrdersByCustomerUseCase;
 import com.orders.infrastructure.adapter.in.web.dto.CreateOrderRequest;
 import com.orders.infrastructure.adapter.in.web.dto.CustomerDto;
 import com.orders.infrastructure.adapter.in.web.dto.OrderItemDto;
+
+import reactor.core.publisher.Flux;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -47,6 +51,9 @@ public class OrderControllerTest {
 
     @MockitoBean
     private GetOrdersByCustomerUseCase getOrdersByCustomerUseCase;
+
+    @MockitoBean
+    private GetOrdersByCustomerReactiveUseCase getOrdersByCustomerReactiveUseCase;
 
     @Test
     public void shouldCreateOrderWhenPayloadIsValid() throws Exception {
@@ -187,6 +194,59 @@ public class OrderControllerTest {
     @Test
     public void shouldReturnBadRequestWhenCustomerDocumentIsInvalid() throws Exception{
         mockMvc.perform(get("/api/v1/orders/customer/123"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status", is(400)))
+                .andExpect(jsonPath("$.message", containsString("Validation failed")));
+    }
+
+    @Test
+    public void shouldRetunOrdersByCustomerReactiveWhenValid() throws Exception {
+        String document = "123456789";
+        Order mockOrder = Order.builder()
+                .id("some-id")
+                .customer(Customer.builder()
+                        .name("Yurgen Prado")
+                        .email("yurgen.prado@ias.com.co")
+                        .documentType("CC")
+                        .documentNumber(document)
+                        .build())
+                .totalAmount(150.0)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(getOrdersByCustomerReactiveUseCase.getOrdersByCustomerDocumentReactive(document))
+                .thenReturn(Flux.just(mockOrder));
+
+        org.springframework.test.web.servlet.MvcResult mvcResult = mockMvc.perform(get("/api/v1/orders/customer/" + document + "/reactive"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(mvcResult))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id", is("some-id")))
+                .andExpect(jsonPath("$[0].customer.documentNumber", is(document)));
+    }
+
+    @Test
+    public void shouldReturnNotFoundWhenNoOrdersFoundReactive() throws Exception{
+        String document = "123456789";
+        when(getOrdersByCustomerReactiveUseCase.getOrdersByCustomerDocumentReactive(document))
+                .thenReturn(Flux.error(new com.orders.domain.exception.OrderNotFoundException("No orders found for customer with document: " + document)));
+
+        org.springframework.test.web.servlet.MvcResult mvcResult = mockMvc.perform(get("/api/v1/orders/customer/" + document + "/reactive"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+                .andReturn();
+
+        Object asyncResult = mvcResult.getAsyncResult();
+        org.junit.jupiter.api.Assertions.assertTrue(asyncResult instanceof com.orders.domain.exception.OrderNotFoundException);
+        org.junit.jupiter.api.Assertions.assertEquals("No orders found for customer with document: " + document, ((Exception) asyncResult).getMessage());
+    }
+
+    @Test
+    public void shouldReturnBadRequestWhenCustomerDocumentIsInvalidReactive() throws Exception{
+        mockMvc.perform(get("/api/v1/orders/customer/123/reactive"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status", is(400)))
                 .andExpect(jsonPath("$.message", containsString("Validation failed")));

@@ -29,6 +29,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 
+
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
@@ -39,10 +40,11 @@ public class OrderController {
     private final CreateOrderUseCase createOrderUseCase;
     private final GetOrderUseCase getOrderUseCase;
     private final GetOrdersByCustomerUseCase getOrdersByCustomerUseCase;
+    private final com.orders.domain.port.in.GetOrdersByCustomerReactiveUseCase getOrdersByCustomerReactiveUseCase;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @CacheEvict(value = "ordersByCustomer", key = "#request.customer.documentNumber")
+    @CacheEvict(value = "ordersByCustomer", key = "#p0.customer.documentNumber")
     @Operation(
         summary = "Create new order",
         description = "initiates the process of creating a controlled and validated order"
@@ -92,14 +94,14 @@ public class OrderController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class))
         )
     })
-    public OrderResponse getOrderById(@PathVariable String id) {
+    public OrderResponse getOrderById(@PathVariable("id") String id) {
         return getOrderUseCase.getOrderById(id)
                 .map(OrderWebMapper::toResponse)
                 .orElseThrow(() -> new OrderNotFoundException("Order with ID " + id + " not found"));
     }
 
     @GetMapping("/customer/{documentNumber}")
-    @Cacheable(value = "ordersByCustomer", key = "#documentNumber")
+    @Cacheable(value = "ordersByCustomer", key = "#p0")
     @Operation(
         summary = "Check orders by document number",
         description = "Searches and returns the list of orders associated with a document number. Validates the document format and uses caching."
@@ -122,7 +124,7 @@ public class OrderController {
         )
     })
     public List<OrderResponse> getOrderByCustomerDocument(
-        @PathVariable
+        @PathVariable("documentNumber")
         @Pattern(regexp = "^\\d{5,12}$", message = "Document number must be numeric and between 5 and 12 digits")
         String documentNumber
     ){
@@ -131,5 +133,41 @@ public class OrderController {
                 .map(OrderWebMapper::toResponse)
                 .toList();
     }
-    
+
+    @GetMapping("/customer/{documentNumber}/reactive")
+    @Operation(
+        summary = "Check orders reactively by document number",
+        description = "Searches and returns a reactive flow of orders associated with a document number. Validates the document format."
+    )
+        @ApiResponses( value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Purchase orders stream",
+            content = @Content(schema = @Schema(implementation = OrderResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "invalid document format",
+            content = @Content(schema = @Schema(implementation = ValidationErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "customer not found or has no orders",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Internal Server Error",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+        )
+    })
+    public reactor.core.publisher.Mono<List<OrderResponse>> getOrderByCustomerDocumentReactive(
+        @PathVariable("documentNumber")
+        @Pattern(regexp = "^\\d{5,12}$", message = "Document number must be numeric and between 5 and 12 digits" )
+        String documentNumber
+    ){
+        return getOrdersByCustomerReactiveUseCase.getOrdersByCustomerDocumentReactive(documentNumber)
+                    .map(OrderWebMapper::toResponse)
+                    .collectList();
+    }
 }

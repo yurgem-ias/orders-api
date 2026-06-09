@@ -20,8 +20,8 @@ public class GetOrdersByCustomerUseCaseImpl implements GetOrdersByCustomerUseCas
         if (documentNumber == null || documentNumber.isBlank()){
             throw new   IllegalArgumentException("Customer document number cannot be null or empty");
         }
-        if (documentNumber.matches(DOCUMENT_REGEX)) {
-            throw new IllegalArgumentException("Customer document number must ve numeric and between 5 and 12 digits");
+        if (!documentNumber.matches(DOCUMENT_REGEX)) {
+            throw new IllegalArgumentException("Customer document number must be numeric and between 5 and 12 digits");
         }
         return orderRepositoryPort.findByCustomerDocumentNumber(documentNumber);
     }

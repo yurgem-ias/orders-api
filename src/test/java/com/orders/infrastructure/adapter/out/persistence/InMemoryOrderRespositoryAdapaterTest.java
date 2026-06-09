@@ -85,8 +85,18 @@ class InMemoryOrderRespositoryAdapaterTest {
         assertThrows(IllegalArgumentException.class, () -> repository.save(sampleOrder));
     }
 
+    @Test
+    void shouldFindOrdersByCustomerDocumentNumber(){
+        repository.save(sampleOrder);
 
+        List<Order> orders = repository.findByCustomerDocumentNumber("109213121");
+        assertEquals(1, orders.size());
+        assertEquals("order-uuid-123", orders.get(0).getId());
 
+        List<Order> notFound = repository.findByCustomerDocumentNumber("00000000");
+        assertTrue(notFound.isEmpty());
 
-
+        List<Order> nullDocument = repository.findByCustomerDocumentNumber(null);
+        assertTrue(nullDocument.isEmpty());
+    }
 }

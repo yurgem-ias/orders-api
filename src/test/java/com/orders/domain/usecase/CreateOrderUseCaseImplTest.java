@@ -34,7 +34,7 @@ class CreateOrderUseCaseImplTest {
     private Order valiOrder;
 
     @BeforeEach
-    void setUp() {
+    public void setUp() {
         Customer customer = Customer.builder().name("Yurgen prado").build();
         OrderItem item = OrderItem.builder().productId("PROD-01").quantity(2).unitPrice(10.0).build();
         valiOrder = Order.builder().customer(customer).items(List.of(item)).build();

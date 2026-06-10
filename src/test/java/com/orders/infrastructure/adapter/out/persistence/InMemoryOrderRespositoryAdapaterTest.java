@@ -16,7 +16,7 @@ class InMemoryOrderRespositoryAdapaterTest {
     private Order sampleOrder;
 
     @BeforeEach
-    void setUp(){
+    public void setUp(){
         repository = new InMemoryOrderRepositoryAdapter();
 
         Customer customer = Customer.builder()

@@ -61,9 +61,9 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
                     .path(exchange.getRequest().getPath().value())
                     .build();
             log.warn("Illegal argument on path {}: {}", exchange.getRequest().getPath().value(), ex.getMessage());
-        } else if (ex instanceof RequestValidationException) {
+        } else if (ex instanceof RequestValidationException validationEx) {
             status = HttpStatus.BAD_REQUEST;
-            RequestValidationException validationEx = (RequestValidationException) ex;
+
             List<FieldErrorDto> validationErrors = validationEx.getErrors().getFieldErrors()
                     .stream()
                     .map(error -> new FieldErrorDto(error.getField(), error.getDefaultMessage()))
@@ -78,8 +78,7 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
                     .validationErrors(validationErrors)
                     .build();
             log.warn("Validation error on path {}: {}", exchange.getRequest().getPath().value(), validationErrors);
-        } else if (ex instanceof ResponseStatusException) {
-            ResponseStatusException statusException = (ResponseStatusException) ex;
+        } else if (ex instanceof ResponseStatusException statusException) {
             status = HttpStatus.valueOf(statusException.getStatusCode().value());
             body = ErrorResponse.builder()
                     .timestamp(LocalDateTime.now())
@@ -106,7 +105,7 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
             byte[] bytes = objectMapper.writeValueAsBytes(body);
             DataBuffer buffer = response.bufferFactory().wrap(bytes);
             return response.writeWith(Mono.just(buffer));
-        } catch (Exception e) {
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             log.error("Error writing exception response", e);
             return Mono.error(e);
         }

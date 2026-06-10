@@ -46,7 +46,7 @@ public class OrderRouterTest {
     private Order mockSavedOrder;
 
     @BeforeEach
-    void setUp() {
+    public void setUp() {
         CustomerDto customerDto = CustomerDto.builder()
                 .name("Yurgen Alvarez")
                 .email("yurgen@example.com")

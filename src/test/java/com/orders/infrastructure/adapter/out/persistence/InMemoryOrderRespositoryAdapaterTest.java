@@ -1,21 +1,14 @@
 package com.orders.infrastructure.adapter.out.persistence;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import com.orders.domain.model.Customer;
 import com.orders.domain.model.Order;
 import com.orders.domain.model.OrderItem;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import reactor.test.StepVerifier;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 class InMemoryOrderRespositoryAdapaterTest {
 
@@ -23,7 +16,7 @@ class InMemoryOrderRespositoryAdapaterTest {
     private Order sampleOrder;
 
     @BeforeEach
-    void setUp(){
+    public void setUp(){
         repository = new InMemoryOrderRepositoryAdapter();
 
         Customer customer = Customer.builder()
@@ -50,53 +43,54 @@ class InMemoryOrderRespositoryAdapaterTest {
 
     @Test
     void shouldSaveAndRetrieveOrderSuccessfully(){
-        Order saveOrder = repository.save(sampleOrder);
-        assertNotNull(saveOrder);
-        assertEquals("order-uuid-123", saveOrder.getId());
+        StepVerifier.create(repository.save(sampleOrder))
+                .expectNextMatches(saved -> saved.getId().equals("order-uuid-123") && saved.getTotalAmount() == 6000.0)
+                .verifyComplete();
 
-        Optional<Order> foundOrderOpt = repository.findById("order-uuid-123");
-        assertTrue(foundOrderOpt.isPresent());
-        Order foundOrder = foundOrderOpt.get();
-        assertEquals("Yurgen Prado", foundOrder.getCustomer().getName());
-        assertEquals(6000.0, foundOrder.getTotalAmount());
-        assertEquals(1, foundOrder.getItems().size());
+        StepVerifier.create(repository.findById("order-uuid-123"))
+                .expectNextMatches(found -> found.getCustomer().getName().equals("Yurgen Prado") && found.getItems().size() == 1)
+                .verifyComplete();
     }
 
     @Test
-    void shouldReturnEmptyOptionalWhenOrderNotFound(){
-        Optional<Order> foundOrderOpt = repository.findById("non-existent-uuid");
-        assertFalse(foundOrderOpt.isPresent());
+    void shouldReturnEmptyWhenOrderNotFound(){
+        StepVerifier.create(repository.findById("non-existent-uuid"))
+                .verifyComplete();
     }
 
     @Test
-    void shouldReturnEmptyOptionalWhenIdIsNull(){
-        Optional<Order> foundOrderOpt = repository.findById(null);
-        assertFalse(foundOrderOpt.isPresent());
+    void shouldReturnEmptyWhenIdIsNull(){
+        StepVerifier.create(repository.findById(null))
+                .verifyComplete();
     }
 
     @Test
-    void shouldReturnEmptyOptionalWhenSavingNullOrder(){
-        assertThrows(IllegalArgumentException.class, () -> repository.save(null));
+    void shouldReturnErrorWhenSavingNullOrder(){
+        StepVerifier.create(repository.save(null))
+                .expectError(IllegalArgumentException.class)
+                .verify();
     }
 
     @Test
-    void shouldReturnEmptyOptionalWhenSavingOrderWithNullId(){
+    void shouldReturnErrorWhenSavingOrderWithNullId(){
         sampleOrder.setId(null);
-        assertThrows(IllegalArgumentException.class, () -> repository.save(sampleOrder));
+        StepVerifier.create(repository.save(sampleOrder))
+                .expectError(IllegalArgumentException.class)
+                .verify();
     }
 
     @Test
     void shouldFindOrdersByCustomerDocumentNumber(){
-        repository.save(sampleOrder);
+        StepVerifier.create(repository.save(sampleOrder)).expectNextCount(1).verifyComplete();
 
-        List<Order> orders = repository.findByCustomerDocumentNumber("109213121");
-        assertEquals(1, orders.size());
-        assertEquals("order-uuid-123", orders.get(0).getId());
+        StepVerifier.create(repository.findByCustomerDocumentNumber("109213121"))
+                .expectNextMatches(order -> order.getId().equals("order-uuid-123"))
+                .verifyComplete();
 
-        List<Order> notFound = repository.findByCustomerDocumentNumber("00000000");
-        assertTrue(notFound.isEmpty());
+        StepVerifier.create(repository.findByCustomerDocumentNumber("00000000"))
+                .verifyComplete();
 
-        List<Order> nullDocument = repository.findByCustomerDocumentNumber(null);
-        assertTrue(nullDocument.isEmpty());
+        StepVerifier.create(repository.findByCustomerDocumentNumber(null))
+                .verifyComplete();
     }
 }

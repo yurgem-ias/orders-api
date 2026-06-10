@@ -1,9 +1,8 @@
 package com.orders.domain.port.in;
 
-import java.util.List;
-
 import com.orders.domain.model.Order;
+import reactor.core.publisher.Flux;
 
 public interface GetOrdersByCustomerUseCase {
-    List<Order> getOrdersByCustomerDocument(String documentNumber);
+    Flux<Order> getOrdersByCustomerDocument(String documentNumber);
 }

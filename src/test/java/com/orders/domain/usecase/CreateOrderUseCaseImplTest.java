@@ -1,8 +1,5 @@
 package com.orders.domain.usecase;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -22,6 +19,8 @@ import com.orders.domain.model.Customer;
 import com.orders.domain.model.Order;
 import com.orders.domain.model.OrderItem;
 import com.orders.domain.port.out.OrderRepositoryPort;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 @ExtendWith(MockitoExtension.class)
 class CreateOrderUseCaseImplTest {
@@ -35,7 +34,7 @@ class CreateOrderUseCaseImplTest {
     private Order valiOrder;
 
     @BeforeEach
-    void setUp() {
+    public void setUp() {
         Customer customer = Customer.builder().name("Yurgen prado").build();
         OrderItem item = OrderItem.builder().productId("PROD-01").quantity(2).unitPrice(10.0).build();
         valiOrder = Order.builder().customer(customer).items(List.of(item)).build();
@@ -43,24 +42,26 @@ class CreateOrderUseCaseImplTest {
 
     @Test
     void shouldCreateOrderSuccessfully() {
-        when(orderRepositoryPort.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepositoryPort.save(any(Order.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-        Order creatOrder = createOrderUseCase.createOrder(valiOrder);
+        StepVerifier.create(createOrderUseCase.createOrder(valiOrder))
+                .expectNextMatches(created -> {
+                    return created.getId() != null &&
+                            created.getCreatedAt() != null &&
+                            created.getTotalAmount() != null;
+                })
+                .verifyComplete();
 
-        assertNotNull(creatOrder);
-        assertNotNull(creatOrder.getId());
-        assertNotNull(creatOrder.getCreatedAt());
-        assertNotNull(creatOrder.getTotalAmount());
-
-        verify(orderRepositoryPort, times(1)).save(valiOrder);
+        verify(orderRepositoryPort, times(1)).save(any(Order.class));
     }
 
     @Test
     void shouldThrowExceptionWhenOrderIsNull() {
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            createOrderUseCase.createOrder(null);
-        });
-        assertEquals("Order data cannot be null", exception.getMessage());
+        StepVerifier.create(createOrderUseCase.createOrder(null))
+                .expectErrorMatches(throwable -> throwable instanceof IllegalArgumentException &&
+                        throwable.getMessage().equals("Order data cannot be null"))
+                .verify();
+
         verify(orderRepositoryPort, never()).save(any());
     }
 
@@ -68,11 +69,11 @@ class CreateOrderUseCaseImplTest {
     void shouldThrowExceptionWhenOrderIsInvalid() {
         valiOrder.setCustomer(null);
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            createOrderUseCase.createOrder(valiOrder);
-        });
-        assertEquals("Customer details are required", exception.getMessage());
+        StepVerifier.create(createOrderUseCase.createOrder(valiOrder))
+                .expectErrorMatches(throwable -> throwable instanceof IllegalArgumentException &&
+                        throwable.getMessage().equals("Customer details are required"))
+                .verify();
+
         verify(orderRepositoryPort, never()).save(any());
     }
-
 }

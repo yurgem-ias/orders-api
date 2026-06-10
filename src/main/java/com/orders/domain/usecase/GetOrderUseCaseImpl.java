@@ -3,8 +3,7 @@ package com.orders.domain.usecase;
 import com.orders.domain.model.Order;
 import com.orders.domain.port.in.GetOrderUseCase;
 import com.orders.domain.port.out.OrderRepositoryPort;
-
-import java.util.Optional;
+import reactor.core.publisher.Mono;
 
 public class GetOrderUseCaseImpl implements GetOrderUseCase {
 
@@ -15,9 +14,9 @@ public class GetOrderUseCaseImpl implements GetOrderUseCase {
     }
 
     @Override
-    public Optional<Order> getOrderById(String id) {
+    public Mono<Order> getOrderById(String id) {
         if (id == null || id.isBlank()) {
-            throw new IllegalArgumentException("Order ID cannot be null or empty");
+            return Mono.error(new IllegalArgumentException("Order ID cannot be null or empty"));
         }
         return orderRepositoryPort.findById(id);
     }

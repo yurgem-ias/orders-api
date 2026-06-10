@@ -1,7 +1,8 @@
 package com.orders.domain.port.in;
 
 import com.orders.domain.model.Order;
+import reactor.core.publisher.Mono;
 
 public interface CreateOrderUseCase {
-    Order createOrder(Order order);
+    Mono<Order> createOrder(Order order);
 }

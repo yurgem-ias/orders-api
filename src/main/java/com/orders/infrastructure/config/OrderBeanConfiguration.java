@@ -2,12 +2,10 @@ package com.orders.infrastructure.config;
 
 import com.orders.domain.port.in.CreateOrderUseCase;
 import com.orders.domain.port.in.GetOrderUseCase;
-import com.orders.domain.port.in.GetOrdersByCustomerReactiveUseCase;
 import com.orders.domain.port.in.GetOrdersByCustomerUseCase;
 import com.orders.domain.port.out.OrderRepositoryPort;
 import com.orders.domain.usecase.CreateOrderUseCaseImpl;
 import com.orders.domain.usecase.GetOrderUseCaseImpl;
-import com.orders.domain.usecase.GetOrdersByCustomerReactiveUseCaseImpl;
 import com.orders.domain.usecase.GetOrdersByCustomerUseCaseImpl;
 
 import org.springframework.context.annotation.Bean;
@@ -31,8 +29,4 @@ public class OrderBeanConfiguration {
         return new GetOrdersByCustomerUseCaseImpl(orderRepositoryPort);
     }
 
-    @Bean
-    public GetOrdersByCustomerReactiveUseCase getOrdersByCustomerReactiveUseCase(OrderRepositoryPort orderRepositoryPort){
-        return new GetOrdersByCustomerReactiveUseCaseImpl(orderRepositoryPort);
-    }
 }

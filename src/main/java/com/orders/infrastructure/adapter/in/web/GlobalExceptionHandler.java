@@ -1,153 +1,114 @@
 package com.orders.infrastructure.adapter.in.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orders.domain.exception.OrderNotFoundException;
 import com.orders.infrastructure.adapter.in.web.dto.ErrorResponse;
 import com.orders.infrastructure.adapter.in.web.dto.ValidationErrorResponse;
 import com.orders.infrastructure.adapter.in.web.dto.ValidationErrorResponse.FieldErrorDto;
-import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebExceptionHandler;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Component
+@Order(-2)
+@RequiredArgsConstructor
 @Slf4j
-@RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler implements WebExceptionHandler {
 
-        @ExceptionHandler(MethodArgumentNotValidException.class)
-        public ResponseEntity<ValidationErrorResponse> handleValidationExceptions(
-                        MethodArgumentNotValidException ex, HttpServletRequest request) {
+    private final ObjectMapper objectMapper;
 
-                List<FieldErrorDto> validationErrors = ex.getBindingResult()
-                                .getFieldErrors()
-                                .stream()
-                                .map(error -> new FieldErrorDto(error.getField(), error.getDefaultMessage()))
-                                .collect(Collectors.toList());
+    @Override
+    public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
+        ServerHttpResponse response = exchange.getResponse();
 
-                ValidationErrorResponse errorResponse = ValidationErrorResponse.builder()
-                                .timestamp(LocalDateTime.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .message("Validation failed for the request payload")
-                                .path(request.getRequestURI())
-                                .validationErrors(validationErrors)
-                                .build();
-
-                log.warn("Validation error on path {}: {}", request.getRequestURI(), validationErrors);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        if (response.isCommitted()) {
+            return Mono.error(ex);
         }
 
-        @ExceptionHandler(OrderNotFoundException.class)
-        public ResponseEntity<ErrorResponse> handleOrderNotFoundException(
-                        OrderNotFoundException ex, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+        Object body;
 
-                ErrorResponse errorResponse = ErrorResponse.builder()
-                                .timestamp(LocalDateTime.now())
-                                .status(HttpStatus.NOT_FOUND.value())
-                                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                                .message(ex.getMessage())
-                                .path(request.getRequestURI())
-                                .build();
+        if (ex instanceof OrderNotFoundException) {
+            status = HttpStatus.NOT_FOUND;
+            body = ErrorResponse.builder()
+                    .timestamp(LocalDateTime.now())
+                    .status(status.value())
+                    .error(status.getReasonPhrase())
+                    .message(ex.getMessage())
+                    .path(exchange.getRequest().getPath().value())
+                    .build();
+            log.info("Order not found exception on path {}: {}", exchange.getRequest().getPath().value(), ex.getMessage());
+        } else if (ex instanceof IllegalArgumentException) {
+            status = HttpStatus.BAD_REQUEST;
+            body = ErrorResponse.builder()
+                    .timestamp(LocalDateTime.now())
+                    .status(status.value())
+                    .error(status.getReasonPhrase())
+                    .message(ex.getMessage())
+                    .path(exchange.getRequest().getPath().value())
+                    .build();
+            log.warn("Illegal argument on path {}: {}", exchange.getRequest().getPath().value(), ex.getMessage());
+        } else if (ex instanceof RequestValidationException) {
+            status = HttpStatus.BAD_REQUEST;
+            RequestValidationException validationEx = (RequestValidationException) ex;
+            List<FieldErrorDto> validationErrors = validationEx.getErrors().getFieldErrors()
+                    .stream()
+                    .map(error -> new FieldErrorDto(error.getField(), error.getDefaultMessage()))
+                    .collect(Collectors.toList());
 
-                log.info("Order not found exception on path {}: {}", request.getRequestURI(), ex.getMessage());
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            body = ValidationErrorResponse.builder()
+                    .timestamp(LocalDateTime.now())
+                    .status(status.value())
+                    .error(status.getReasonPhrase())
+                    .message("Validation failed for the request payload")
+                    .path(exchange.getRequest().getPath().value())
+                    .validationErrors(validationErrors)
+                    .build();
+            log.warn("Validation error on path {}: {}", exchange.getRequest().getPath().value(), validationErrors);
+        } else if (ex instanceof ResponseStatusException) {
+            ResponseStatusException statusException = (ResponseStatusException) ex;
+            status = HttpStatus.valueOf(statusException.getStatusCode().value());
+            body = ErrorResponse.builder()
+                    .timestamp(LocalDateTime.now())
+                    .status(status.value())
+                    .error(status.getReasonPhrase())
+                    .message(statusException.getReason())
+                    .path(exchange.getRequest().getPath().value())
+                    .build();
+        } else {
+            log.error("Internal Server Error occurred on path {}", exchange.getRequest().getPath().value(), ex);
+            body = ErrorResponse.builder()
+                    .timestamp(LocalDateTime.now())
+                    .status(status.value())
+                    .error(status.getReasonPhrase())
+                    .message("An unexpected internal error occurred. Please contact support.")
+                    .path(exchange.getRequest().getPath().value())
+                    .build();
         }
 
-        @ExceptionHandler(IllegalArgumentException.class)
-        public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
-                        IllegalArgumentException ex, HttpServletRequest request) {
+        response.setStatusCode(status);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
-                ErrorResponse errorResponse = ErrorResponse.builder()
-                                .timestamp(LocalDateTime.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .message(ex.getMessage())
-                                .path(request.getRequestURI())
-                                .build();
-
-                log.warn("Illegal argument on path {}: {}", request.getRequestURI(), ex.getMessage());
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        try {
+            byte[] bytes = objectMapper.writeValueAsBytes(body);
+            DataBuffer buffer = response.bufferFactory().wrap(bytes);
+            return response.writeWith(Mono.just(buffer));
+        } catch (Exception e) {
+            log.error("Error writing exception response", e);
+            return Mono.error(e);
         }
-
-        @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
-        public ResponseEntity<ValidationErrorResponse> handleConstraintViolationException(
-                        jakarta.validation.ConstraintViolationException ex,
-                        HttpServletRequest request) {
-
-                List<FieldErrorDto> validationErrors = ex.getConstraintViolations()
-                                .stream()
-                                .map(violation -> {
-                                        String propertyPath = violation.getPropertyPath().toString();
-                                        String parameterName = propertyPath.contains(".")
-                                                        ? propertyPath.substring(propertyPath.lastIndexOf('.')+1)
-                                                        : propertyPath;
-                                        return new FieldErrorDto(parameterName, violation.getMessage());
-                                })
-                                .collect(Collectors.toList());
-
-                ValidationErrorResponse errorResponse = ValidationErrorResponse.builder()
-                                .timestamp(LocalDateTime.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .message("Validation failed for the request paylod/parameters")
-                                .path(request.getRequestURI())
-                                .validationErrors(validationErrors)
-                                .build();
-
-                log.warn("Constraint validaion error on path {}: {}", request.getRequestURI(), validationErrors);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        }
-
-                @SuppressWarnings("removal")
-                @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
-        public ResponseEntity<ValidationErrorResponse> handleMethodValidationException(
-                        org.springframework.web.method.annotation.HandlerMethodValidationException ex,
-                        HttpServletRequest request) {
-
-                List<FieldErrorDto> validationErrors = ex.getAllValidationResults()
-                                .stream()
-                                .map(result -> {
-                                        String parameterName = result.getMethodParameter().getParameterName();
-                                        String message = result.getResolvableErrors().stream()
-                                                        .map(org.springframework.context.MessageSourceResolvable::getDefaultMessage)
-                                                        .collect(Collectors.joining(", "));
-                                        return new FieldErrorDto(parameterName, message);
-                                })
-                                .collect(Collectors.toList());
-
-                ValidationErrorResponse errorResponse = ValidationErrorResponse.builder()
-                                .timestamp(LocalDateTime.now())
-                                .status(HttpStatus.BAD_REQUEST.value())
-                                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                                .message("Validation failed for the request parameters")
-                                .path(request.getRequestURI())
-                                .validationErrors(validationErrors)
-                                .build();
-
-                log.warn("Parameter validaion error on path {}: {}", request.getRequestURI(), validationErrors);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        }
-
-        @ExceptionHandler(Exception.class)
-        public ResponseEntity<ErrorResponse> handleAllExceptions(
-                        Exception ex, HttpServletRequest request) {
-
-                log.error("Internal Server Error occurred on path {}", request.getRequestURI(), ex);
-
-                ErrorResponse errorResponse = ErrorResponse.builder()
-                                .timestamp(LocalDateTime.now())
-                                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                                .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                                .message("An unexpected internal error occurred. Please contact support.")
-                                .path(request.getRequestURI())
-                                .build();
-
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
+    }
 }

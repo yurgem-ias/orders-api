@@ -15,9 +15,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.orders.domain.event.OrderCreatedEvent;
 import com.orders.domain.model.Customer;
 import com.orders.domain.model.Order;
 import com.orders.domain.model.OrderItem;
+import com.orders.domain.port.out.OrderEventPublisherPort;
 import com.orders.domain.port.out.OrderRepositoryPort;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -28,6 +30,9 @@ class CreateOrderUseCaseImplTest {
     @Mock
     private OrderRepositoryPort orderRepositoryPort;
 
+    @Mock
+    private OrderEventPublisherPort orderEventPublisherPort;
+
     @InjectMocks
     private CreateOrderUseCaseImpl createOrderUseCase;
 
@@ -35,7 +40,7 @@ class CreateOrderUseCaseImplTest {
 
     @BeforeEach
     public void setUp() {
-        Customer customer = Customer.builder().name("Yurgen prado").build();
+        Customer customer = Customer.builder().name("Yurgen prado").email("yurgen.prado@ias.com.co").build();
         OrderItem item = OrderItem.builder().productId("PROD-01").quantity(2).unitPrice(10.0).build();
         valiOrder = Order.builder().customer(customer).items(List.of(item)).build();
     }
@@ -43,6 +48,7 @@ class CreateOrderUseCaseImplTest {
     @Test
     void shouldCreateOrderSuccessfully() {
         when(orderRepositoryPort.save(any(Order.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(orderEventPublisherPort.publishOrderCreated(any(OrderCreatedEvent.class))).thenReturn(Mono.empty());
 
         StepVerifier.create(createOrderUseCase.createOrder(valiOrder))
                 .expectNextMatches(created -> {
@@ -53,6 +59,7 @@ class CreateOrderUseCaseImplTest {
                 .verifyComplete();
 
         verify(orderRepositoryPort, times(1)).save(any(Order.class));
+        verify(orderEventPublisherPort, times(1)).publishOrderCreated(any(OrderCreatedEvent.class));
     }
 
     @Test

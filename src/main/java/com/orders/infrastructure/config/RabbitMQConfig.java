@@ -7,6 +7,7 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -34,7 +35,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding ordersBinding(Queue ordersQueue, DirectExchange ordersExchange){
+    public Binding ordersBinding(Queue ordersQueue, @Qualifier("oDirectExchange") DirectExchange ordersExchange){
         return BindingBuilder.bind(ordersQueue).to(ordersExchange).with(ROUTING_KEY);
     }
 
@@ -49,7 +50,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding dlqBinding(Queue dlqQueue, DirectExchange dlqExchange){
+    public Binding dlqBinding(Queue dlqQueue, @Qualifier("dlqExchange") DirectExchange dlqExchange){
         return BindingBuilder.bind(dlqQueue).to(dlqExchange).with(DLQ_ROUTIN_KEY);
     }
 
